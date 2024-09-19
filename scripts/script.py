@@ -16,7 +16,9 @@ from time import sleep
 
 # Configure the gobal variable
 url = "https://masothue.com/tra-cuu-ma-so-thue-theo-tinh/ho-chi-minh-23"
+number_item_per_page = 2
 countItemPerPage = 1
+page_index = 2
 data = {}
 
 
@@ -85,7 +87,6 @@ def crawl_data(driver):
         driver.quit()
 
 def save_data(data, export_folder='../data', file_name='data.csv'):
-    print(data)
     try:
         if not os.path.exists(export_folder):
             os.makedirs(export_folder)
@@ -115,31 +116,53 @@ def save_data(data, export_folder='../data', file_name='data.csv'):
 def navigate_back(driver):
     try:
         driver.back()
-        logger.info("Navigated back successfully.")
         close_ads(driver)
+        if countItemPerPage == number_item_per_page:
+            try:
+                go_to_next_page(driver) 
+            except Exception as e:
+                logger.error(f"An error occurred while navigating to next page: {e}")
+                driver.quit()
+        logger.info("Navigated back successfully.")
+    except Exception as e:
+        logger.error(f"An error occurred while navigating back: {e}")
+        driver.quit()
     except (TimeoutException, NoSuchElementException) as e:
-        logger.error(f"An error occurred while navigating back or to next page: {e}")
         driver.quit()
         
 def close_ads(driver):
     try:
-        ads = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.ID, "card"))
+        ads = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "ad_position_box"))
         )
         if ads:
-            ads = driver.find_element(By.XPATH, "/html/body/div[1]/div/div[1]/div[1]/div")
-            ads.click()
+            find_close = driver.find_element(By.ID, "dismiss-button")
+            find_close.find_element(By.XPATH, ".//div").click()
             logger.info("Ads was successfully closed.")
     except (TimeoutException, NoSuchElementException) as e:
         logger.info("No ads found or an error occurred while closing ads. Continuing the program.")
     
-        
+def go_to_next_page(driver):
+    global countItemPerPage, page_index   
+    countItemPerPage = 1
+    try:
+        next_page = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"//a[text()='{page_index}']"))
+        )
+        next_page.click()
+        page_index += 1
+        logger.info("Navigated to next page successfully.")
+        return True
+    except (TimeoutException, NoSuchElementException) as e:
+        logger.error(f"An error occurred while navigating to next page: {e}")
+        return False
 
 if __name__ == "__main__":
     driver = go_to_website(url)
     if driver:
         try:
-            while countItemPerPage <= 25:
+            while countItemPerPage <= number_item_per_page:
+                logger.info(f"Item per page: {countItemPerPage}") 
                 try:
                     click_to_detail(driver)
                     crawl_data(driver)
@@ -147,6 +170,7 @@ if __name__ == "__main__":
                     navigate_back(driver)
                     # Add a delay to avoid overwhelming the server
                     sleep(5)
+                    
                 except (NoSuchElementException, TimeoutException) as e:
                     logger.error(f"An error occurred: {e}")
                     break
